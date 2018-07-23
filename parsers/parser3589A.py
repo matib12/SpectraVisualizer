@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 
 # import numpy as np
 
@@ -28,15 +28,10 @@ filtername = parsershortname + " (*.txt)"
 
 
 class parser(gp.genericparser):
-    fname = None
-    data = None
-    # number of traces
-    numberoftraces = None
-    rbw = 1.0
 
     rbw_format_string = 'PN-{:0>9}'
 
-    originalunit = 'dbm' # Can be discovered automatically by parser or set manually
+    originalunit = 'dbm'  # Can be discovered automatically by parser or set manually
 
     converters = SC.allconverters[originalunit]
 
@@ -44,22 +39,22 @@ class parser(gp.genericparser):
     headerlength = 15
 
     def __init__(self, filename):
+        self.traces[:] = []
         self.fname = filename
-        self.data = genfromtxt(filename, delimiter='\t', skip_header=self.headerlength)
-        self.numberoftraces = len(self.data[0] - 1)
+        data = genfromtxt(filename, delimiter='\t', skip_header=self.headerlength)
+        self.numberoftraces = len(self.data[0]) - 1
+        for i in range(self.numberoftraces):
+            self.traces.append(data[:, [0, i + 1]])
         self.rbw = 1.0
 
     def header(self):
-        f = open(self.fname, 'r')
+        with open(self.fname, 'r') as f:
+            for i in range(self.headerlength):
+                line_text = f.readline()
 
-        for i in range(self.headerlength):
-            line_text = f.readline()
-
-            #  RBW
-            rbw_line_format = '"RBW:{:^}VBW:{:^}"'
-            par = parse.parse(rbw_line_format, line_text)
-            print(par)
-            if par is not None:
-                self.rbw = par[0][:-2]
-
-        f.close()
+                #  RBW
+                rbw_line_format = '"RBW:{:^}VBW:{:^}"'
+                par = parse.parse(rbw_line_format, line_text)
+                print(par)
+                if par is not None:
+                    self.rbw = par[0][:-2]

@@ -78,6 +78,11 @@
     </column>
     <column>
      <property name="text">
+      <string>TR</string>
+     </property>
+    </column>
+    <column>
+     <property name="text">
       <string>RBW [Hz]</string>
      </property>
     </column>

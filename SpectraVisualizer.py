@@ -1,10 +1,12 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*- 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-from PyQt4 import QtGui, uic
-from PyQt4 import QtCore as core
+#from PyQt4 import QtGui, uic
+import qtpy.QtWidgets
+from qtpy import QtWidgets, uic
+from qtpy import QtCore as core
 import numpy as np
-import copy
+import gc
 
 import sys, os
 
@@ -22,21 +24,25 @@ import SpectraConverter as SC
 __author__ = "Mateusz Bawaj"
 __copyright__ = "Copyright 2018"
 __license__ = "GPL"
-__version__ = "1.0.1"
+__version__ = "1.0.4"
 __maintainer__ = "Mateusz Bawaj"
 __email__ = "bawaj@pg.infn.it"
 __status__ = "Development"
 
 
-class SvMainWindow(QtGui.QMainWindow):
+class SvMainWindow(QtWidgets.QMainWindow):
+    filenameItemFlags = core.Qt.ItemIsSelectable | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsEnabled
+    traceItemFlags = core.Qt.ItemIsSelectable | core.Qt.ItemIsUserCheckable | core.Qt.ItemIsEnabled
     data = np.array
 
 # Add parsers to the collection
-    allparsers = {parser3589A, parser4395A, parserCF3600A, parserpyrpl}
-    filterslist = core.QStringList()
+    availableparsers = {parser3589A, parser4395A, parserCF3600A, parserpyrpl}
+    parsers = list()
+    filterslist = [None]
     psdunitlist = []
 
-    selectedparser = parser4395A  # Default parser in add file dialog. Substituted later in the openspectrumfile
+    selectedfilepath = None  # Working directory path
+    selectedfiltername = None  #parser4395A  # Default parser in add file dialog. Substituted later in the openspectrumfile
 
     def resizeEvent(self, e):
         self.spectraTableWidget.resize(self.width() - 20, 380)  # Resize list of spectra
@@ -48,8 +54,8 @@ class SvMainWindow(QtGui.QMainWindow):
 
     def __init__(self):
 # Prepare list of filters for QFileDialog
-        self.filterslist.append("Select device")
-        for par in self.allparsers:
+        self.filterslist[0] = "Select device"
+        for par in self.availableparsers:
             self.filterslist.append(par.filtername)
         self.filterslist.append("Spectrum files (*.csv *.dat *.xml)")
         self.filterslist.append("All files (*.*)")
@@ -59,7 +65,7 @@ class SvMainWindow(QtGui.QMainWindow):
         uic.loadUi("./SpectraVisualizer.ui", self)
 
 # Prepare QTableView header widths
-        self.spectraTableWidget.horizontalHeader().setResizeMode(0, QtGui.QHeaderView.Stretch)
+        self.spectraTableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
 # Prepare list of units
         for unit in SC.spectraunits:
@@ -90,61 +96,71 @@ class SvMainWindow(QtGui.QMainWindow):
 
     def openspectrumfile(self):
         print("Open file dialog...")
-        filedialog = QtGui.QFileDialog(self)
+        filedialog = QtWidgets.QFileDialog(self)
         filedialog.setWindowTitle('Load spectrum file')
         filedialog.setNameFilters(self.filterslist)
-        filedialog.selectNameFilter(self.selectedparser.filtername)
-        filedialog.setDirectory("~")
+        if self.selectedfiltername is not None:
+            filedialog.selectNameFilter(self.selectedfiltername)
+        if self.selectedfilepath is None:
+            filedialog.setDirectory("~")
+        else:
+            filedialog.setDirectory(self.selectedfilepath)
 
         if filedialog.exec_() == filedialog.Accepted:
-            filedialog.selectedNameFilter()
-
-            fname = filedialog.selectedFiles()[0]  # This is QString
+            fname = filedialog.selectedFiles()[0]
             print("Loading file: " + fname)
 
-            for parsermodule in self.allparsers:
+            self.selectedfilepath = os.path.dirname(os.path.abspath(fname))
+
+            for parsermodule in self.availableparsers:
                 if parsermodule.filtername == filedialog.selectedNameFilter():  # Only if there is a coincident parser
-                    self.selectedparser = parsermodule  # Remember parser for this session
-                    newspectrum = parsermodule.parser(str(fname))
+                    self.selectedfiltername = parsermodule.filtername  # Remember the previous filtername
+
+                    currentparse = parsermodule.parser(fname)  # Remember parser for this programme run
 
                     #  Header parse
-                    newspectrum.header()
-                    newspectrum.printparams()
+                    currentparse.header()
+                    currentparse.printparams()
 
                     #  Data parse
-                    rownumber = self.spectraTableWidget.rowCount()
-                    self.spectraTableWidget.insertRow(rownumber)
+                    rowsnumber = self.spectraTableWidget.rowCount()
 
-                    # 1st column - Filename and data
-                    dataitem = QtGui.QTableWidgetItem(os.path.basename(str(fname)))
-                    dataitem.setData(core.Qt.UserRole, newspectrum)
-                    self.spectraTableWidget.setItem(rownumber, 0, dataitem)
+                    for trace in range(currentparse.numberoftraces):
+                        self.spectraTableWidget.insertRow(rowsnumber)
 
-                    # 2nd column - RBW
-                    if newspectrum.rbw != 0:
-                        rbwitem = QtGui.QTableWidgetItem(str(newspectrum.rbw))
-                        rbwitem.setData(core.Qt.UserRole, newspectrum.rbw)
-                    else:
-                        rbwitem = QtGui.QTableWidgetItem("0.0")
-                    self.spectraTableWidget.setItem(rownumber, 1, rbwitem)
+                        # 1st column - Filename and data
+                        dataitem = QtWidgets.QTableWidgetItem(os.path.basename(fname))
+                        dataitem.setData(core.Qt.UserRole, currentparse.traces[trace])
+                        dataitem.setFlags(self.filenameItemFlags)
+                        self.spectraTableWidget.setItem(rowsnumber, 0, dataitem)
 
-                    # 3rd column - Measurement unit
-                    nullIcon = QtGui.QIcon()
-                    combo = QtGui.QComboBox()
-                    for unit in SC.spectraunits:
-                        combo.addItem(nullIcon, unit.symbol + " (" + unit.physical_quantity + ")", unit)
-                    #combo.addItems(SC.unitssymbols)
-                    if True: # If unit was recognized by parser
-                        combo.setCurrentIndex(2)
-                    self.spectraTableWidget.setCellWidget(rownumber, 2, combo)
+                        # 2nd column - Trace number in file
+                        tracenumberinfileitem = QtWidgets.QTableWidgetItem(str(trace))
+                        tracenumberinfileitem.setFlags(self.traceItemFlags)
+                        self.spectraTableWidget.setItem(rowsnumber, 1, tracenumberinfileitem)
 
-                    # 4th column - Chart label
-                    label = QtGui.QTableWidgetItem(os.path.basename(str(fname)))
-                    self.spectraTableWidget.setItem(rownumber, 3, label)
+                        # 2nd column - RBW
+                        if currentparse.rbw != 0:
+                            rbwitem = QtWidgets.QTableWidgetItem(str(currentparse.rbw))
+                            rbwitem.setData(core.Qt.UserRole, currentparse.rbw)
+                        else:
+                            rbwitem = QtWidgets.QTableWidgetItem("0.0")
+                        self.spectraTableWidget.setItem(rowsnumber, 2, rbwitem)
 
-                    # item.setCheckState(2)
-                    #item.setSelected(False)
-                    #self.spectraListWidget.addItem(item)
+                        # 3rd column - Measurement unit
+                        combobox = QtWidgets.QComboBox()
+                        for unit in SC.spectraunits:
+                            combobox.addItem(unit.symbol + " (" + unit.physical_quantity + ")", unit)
+
+                        if True:  # If unit was recognized by parser
+                            combobox.setCurrentIndex(0)
+                        self.spectraTableWidget.setCellWidget(rowsnumber, 3, combobox)
+
+                        # 4th column - Chart label
+                        labelitem = QtWidgets.QTableWidgetItem(os.path.basename(fname) + " TR:" + str(trace))
+                        self.spectraTableWidget.setItem(rowsnumber, 4, labelitem)
+
+                    del currentparse
         else:
             print("QFileDialog canceled")
             return
@@ -156,46 +172,49 @@ class SvMainWindow(QtGui.QMainWindow):
             index = SelectedItem.row()
             index_list.append(index)
 
-        index_list = list(set(index_list)) # remove duplicates from the list
+        index_list = list(set(index_list))  # Remove duplicates from the list
 
-        for index in index_list:
+        print(index_list)
+
+        for index in index_list[::-1]:  # Remove in the reversed order
             self.spectraTableWidget.removeRow(index)
 
     def plotallspectra(self):
         print("Plot spectra...")
-        genericpars = gp.genericparser()
         numberofspectra = self.spectraTableWidget.rowCount()
+
         for dataset in range(0, numberofspectra):  # Iterate over all loaded spectra files
-            its = copy.deepcopy(self.spectraTableWidget.item(dataset, 0).data(core.Qt.UserRole).toPyObject())  # Create full copy of data set
-            #print(self.spectraTableWidget.item(dataset, 0).data(core.Qt.UserRole).toPyObject())
-            print(its)
+            its = self.spectraTableWidget.item(dataset, 0).data(core.Qt.UserRole)
+
+            currenttrace = int(self.spectraTableWidget.item(dataset, 1).text())
+            print("Plotting trace: " + str(currenttrace))
 
             try:
-                rbw = gp.genericparser.from_SIprefix(genericpars, self.spectraTableWidget.item(dataset, 1).text())  # Read value of RBW from self.spectraTableWidget
+                rbw = gp.genericparser.from_SIprefix(self.spectraTableWidget.item(dataset, 2).text())  # Read value of RBW from self.spectraTableWidget
             except ValueError as e:
                 print(e)
                 return
 
             print("RBW=" + str(rbw))  # Print RBW read from self.spectraTableWidget
 
-            print(its.data)  # Before normalization and conversion
+            print("Trace before normalization:")
+            print(its[:, 1])  # Before normalization and conversion
 
             # Use proper normalizer for existing source units
-            curr_unit_index = self.spectraTableWidget.cellWidget(dataset, 2).currentIndex()  # Read selected unit
-            print("Source unit: " + str(self.spectraTableWidget.cellWidget(dataset, 2).currentText().toStdString()))
+            curr_unit_index = self.spectraTableWidget.cellWidget(dataset, 3).currentIndex()  # Read selected unit
+            print("Source unit: " + str(self.spectraTableWidget.cellWidget(dataset, 3).itemData(curr_unit_index)))
 
-            N = self.spectraTableWidget.cellWidget(dataset, 2).itemData(curr_unit_index, core.Qt.UserRole).toPyObject()
-            print(N)
+            N = self.spectraTableWidget.cellWidget(dataset, 3).itemData(curr_unit_index)
 
-            its.data[:, range(1, its.numberoftraces)] = N.normalizer(self, its.data[:, range(1, its.numberoftraces)], N.K(self, rbw))
             # Use if necessary a proper converter based on source units and destination units
+            normalizedtemporary = N.normalizer(self, its[:, 1], N.K(self, rbw))
 
-            print(its.data)  # After normalization and conversion
+            print("Trace after normalization:")
+            print(normalizedtemporary)  # After normalization and conversion
 
-            labeltext = self.spectraTableWidget.item(dataset, 3).text()
+            labeltext = self.spectraTableWidget.item(dataset, 4).text()  # Label
 
-            for trace in range(1, its.numberoftraces):
-                plt.plot(its.data[:, 0], its.data[:, trace], label=labeltext + ' ' + str(trace))
+            plt.plot(its[:, 0], normalizedtemporary, label=labeltext)
 
         if numberofspectra > 0:
             plt.ylabel(SC.spectraunits[self.unitComboBox.currentIndex()].symbol)
@@ -207,8 +226,12 @@ class SvMainWindow(QtGui.QMainWindow):
             plt.legend()
             plt.show()
             #plt.show(block=False) #depreciated
+
+            del normalizedtemporary
         else:
             print("Nothing to plot")
+
+        gc.collect()  # Garbage collector keeps the memory usage fairly low
 
 
     def printabout(self):
@@ -219,7 +242,7 @@ class SvMainWindow(QtGui.QMainWindow):
         print("E-mail: " + __email__)
         print("Status: " + __status__)
         print("PyQt version: " + core.PYQT_VERSION_STR)
-        print("Qt version: " + core.QT_VERSION_STR)
+        #print("Qt version: " + core.QT_VERSION)  # Was working with PyQt4 library
         print("Matplotlib version: " + matplotlib.__version__)
 
     def unitchanged(self):
@@ -227,7 +250,7 @@ class SvMainWindow(QtGui.QMainWindow):
 
 
 if __name__ == "__main__":
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
     # open the main window
     window = SvMainWindow()

@@ -7,7 +7,7 @@ import numpy as np
 __authors__ = "Mateusz Bawaj, Marco Vardaro"
 __copyright__ = "Copyright 2018"
 __license__ = "GPL"
-__version__ = "1.0.1"
+__version__ = "1.0.4"
 __maintainer__ = "Mateusz Bawaj"
 __email__ = "bawaj@pg.infn.it"
 __status__ = "Development"
@@ -22,70 +22,47 @@ dbvrms = {'id':"dbvrms", 'symbol':"dBVrms", 'unit':"dBVrms"}
 watt = {'id':"watt", 'symbol': "P", 'unit': "W"}
 dBm = {'id':"dbm", 'symbol': "dBm", 'unit': "dBm"}
 
-class unit:
-    id = "general_unit"
-    symbol = "unit_symbol"
-    unit = "unit"
-    physical_quantity = "unit_quantity"
-
-    def normalizer(self, array, rbw):
-        pass
-
-    def K(self, rbw):
-        pass
 
 # Power spectral density
 # psd_dBm = {'id':"psddbm", 'symbol': "dBm/Hz", 'unit': "W/Hz", 'physical_quantity': "PSD"}
-class psd_dBm(unit):  # Verified with data acquired by 4395A!!! Works well
+class psd_dBm:  # Verified with data acquired by 4395A!!! Works well
     id ="psddbm"
     symbol = "dBm/Hz"
     unit = "W/Hz"
     physical_quantity = "PSD"
 
-    def normalizerl(self, array, rbw):
+    def normalizer(self, array, rbw):
         return lognormalize(array, rbw)
 
-    normalizer = staticmethod(normalizerl)
-
-    def Kl(self, rbw):
+    def K(self, rbw):
         return KdB(rbw)
 
-    K = staticmethod(Kl)
 
-
-class psd_W(unit):  # Verified with data acquired by 4395A!!! Works well
+class psd_W:  # Verified with data acquired by 4395A!!! Works well
     id = "psdwatt"
     symbol = "W/Hz"
     unit = "W/Hz"
     physical_quantity = "PSD"
 
-    def normalizerl(self, array, rbw):
-        return linnormalize(array, rbw)
+    def normalizer(self, array, rbw):
+        return linNormalize(array, rbw)
 
-    normalizer = staticmethod(normalizerl)
-
-    def Kl(self, rbw):
+    def K(self, rbw):
         return KW(rbw)
-
-    K = staticmethod(Kl)
 
 
 #psd_volt = {'id':"psdvolt", 'symbol': "V²/Hz", 'unit': "V^2/Hz", 'physical_quantity': "PSD"}
-class psd_volt(unit):
+class psd_volt:
     id = "psdvolt"
     symbol = "V²/Hz"
     unit = "V^2/Hz"
     physical_quantity = "PSD"
 
-    def normalizerl(self, array, rbw):
-        return linnormalize(array, rbw)
+    def normalizer(self, array, rbw):
+        return linNormalize(array, rbw)
 
-    normalizer = staticmethod(normalizerl)
-
-    def Kl(self, rbw):
+    def K(self, rbw):
         return KW(rbw)
-
-    K = staticmethod(Kl)
 
 
 # Energy spectral density
@@ -103,38 +80,30 @@ class psd_volt(unit):
 #         return KW(rbw)
 
 # Amplitude spectral density
-class asd_volt(unit):  # Verified with data acquired by 4395A!!! Works well
+class asd_volt:  # Verified with data acquired by 4395A!!! Works well
     id = "asdvolt"
     symbol = "V/√Hz"
     unit = "V/sqrt(Hz)"
     physical_quantity = "ASD"
 
-    def normalizerl(self, array, rbw):
-        return linnormalize(array, rbw)
+    def normalizer(self, array, rbw):
+        return linNormalize(array, rbw)
 
-    normalizer = staticmethod(normalizerl)
-
-    def Kl(self, rbw):
+    def K(self, rbw):
         return KV(rbw)
 
-    K = staticmethod(Kl)
 
-
-class asd_dBV(unit):  # Verified with data acquired by 4395A!!! Works well
+class asd_dBV:  # Verified with data acquired by 4395A!!! Works well
     id ="asddbv"
     symbol = "dBV/√Hz"
     unit = "V/sqrt(Hz)"
     physical_quantity = "ASD"
 
-    def normalizerl(self, array, rbw):
+    def normalizer(self, array, rbw):
         return lognormalize(array, rbw)
 
-    normalizer = staticmethod(normalizerl)
-
-    def Kl(self, rbw):
+    def K(self, rbw):
         return KdB(rbw)
-
-    K = staticmethod(Kl)
 
 
 spectraunits = [psd_dBm, asd_dBV, psd_W, psd_volt, asd_volt]
@@ -143,7 +112,8 @@ unitssymbols = []
 for a in spectraunits:
     unitssymbols.append(a.symbol)
 
-# Conversions
+
+# === Conversions ===
 def vpp2amp(array):
     """!@brief Function converts Volt peak-to-peak to amplitude.
 
@@ -243,6 +213,7 @@ def power2vpp(array, resistance=50.0):
     amp = power2amp(array, resistance)
     return amp * 2.0
 
+
 def single(array):
     return array
 
@@ -251,17 +222,21 @@ def single(array):
 def KdB(rbw):
     return 10.0 * math.log10(rbw)
 
+
 def KW(rbw):
     return rbw
+
 
 def KV(rbw):
     return math.sqrt(rbw)
 
-# Normalization
+
+# === Normalization ===
 def lognormalize(array, K):  # dBm/Hz, dBV/sqrt(Hz), dBuV/sqrt(Hz)
     return array - K
 
-def linnormalize(array, K):  # V/sqrt(Hz), W/Hz
+
+def linNormalize(array, K):  # V/sqrt(Hz), W/Hz
     return array / K
 
 
@@ -272,9 +247,3 @@ from_power_converterspalette = {'vpp': power2vpp, 'amp': power2amp, 'vrms': powe
 from_dbm_converterspalette = {'vpp': dbm2vpp, 'amp': dbm2amp, 'vrms': dbm2vrms, 'power': dbm2power, 'dbm': single}
 
 allconverters = {'vpp': from_vpp_converterspalette, 'amp': from_amp_converterspalette, 'vrms': from_rms_converterspalette, 'dbm': from_dbm_converterspalette, 'power': from_power_converterspalette}
-
-#a = np.array((2, 3))
-
-#print(allconverters['vpp']['amp'](a))
-
-
