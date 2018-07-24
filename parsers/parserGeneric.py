@@ -16,31 +16,21 @@ __status__ = "Development"
 SIprefix = {'Y': 24.0, 'Z': 21.0, 'E': 18.0, 'P': 15.0, 'T': 12.0, 'G': 9.0, 'M': 6.0, 'k': 3.0, 'm': -3.0, 'μ': -6.0,
            'u': -6.0, 'n': -9.0, 'p': -12.0, 'f': -15.0, 'a': -18.0, 'z': -21.0, 'y': -24.0}
 
+
 class genericparser(object):
     fname = None
-    traces = []
-    numberoftraces = None
     rbw = 1.0
 
-    __originaltraces__ = None
+    def parse(self):  # Must be overloaded in the inheriting class
+        return []
 
-    def __enter__(self):
-        self.__originaltraces__ = copy.deepcopy(self.traces)
-        return self
-
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.traces = self.__originaltraces__
-        del self.__originaltraces__
-        gc.collect()
-        print("__exit__")
-
+    def header(self):  # Must be overloaded in the inheriting class
+        pass
 
     def printparams(self):
         print("Source file: " + self.fname)
-        print("Number of traces: " + str(self.numberoftraces))
+        #print("Number of traces: " + str(self.numberoftraces))
         print("RBW: " + str(self.rbw))
-
 
     def from_SIprefix(input_str):
         format_string = '{:>g}{prefix:>D}'
@@ -52,8 +42,8 @@ class genericparser(object):
         else:
             #  print(parse_res)
             try:
-                res = parse_res[0] * pow(10.0, SIprefix[parse_res['prefix'][0]])
+                result = parse_res[0] * pow(10.0, SIprefix[parse_res['prefix'][0]])
             except KeyError as e:
                 raise ValueError('Unknown prefix used')
 
-        return res
+        return result

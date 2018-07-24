@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 #from PyQt4 import QtGui, uic
-import qtpy.QtWidgets
 from qtpy import QtWidgets, uic
 from qtpy import QtCore as core
 import numpy as np
@@ -20,6 +19,8 @@ import parsers.parserCF3600A as parserCF3600A
 import parsers.parserpyrpl as parserpyrpl
 
 import SpectraConverter as SC
+
+from operator import itemgetter
 
 __author__ = "Mateusz Bawaj"
 __copyright__ = "Copyright 2018"
@@ -54,9 +55,13 @@ class SvMainWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
 # Prepare list of filters for QFileDialog
-        self.filterslist[0] = "Select device"
+        self.filterslist[0] = ("Select device")
+        parsermodulelist = []
         for par in self.availableparsers:
-            self.filterslist.append(par.filtername)
+            parsermodulelist.append(par.filtername)
+
+        parsermodulelist = sorted(parsermodulelist)  # Available filters appear always in the same order
+        self.filterslist += parsermodulelist
         self.filterslist.append("Spectrum files (*.csv *.dat *.xml)")
         self.filterslist.append("All files (*.*)")
 
@@ -121,6 +126,7 @@ class SvMainWindow(QtWidgets.QMainWindow):
                     #  Header parse
                     currentparse.header()
                     currentparse.printparams()
+                    trrr = currentparse.parse()
 
                     #  Data parse
                     rowsnumber = self.spectraTableWidget.rowCount()
@@ -130,7 +136,7 @@ class SvMainWindow(QtWidgets.QMainWindow):
 
                         # 1st column - Filename and data
                         dataitem = QtWidgets.QTableWidgetItem(os.path.basename(fname))
-                        dataitem.setData(core.Qt.UserRole, currentparse.traces[trace])
+                        dataitem.setData(core.Qt.UserRole, trrr[trace])
                         dataitem.setFlags(self.filenameItemFlags)
                         self.spectraTableWidget.setItem(rowsnumber, 0, dataitem)
 
@@ -190,7 +196,7 @@ class SvMainWindow(QtWidgets.QMainWindow):
             print("Plotting trace: " + str(currenttrace))
 
             try:
-                rbw = gp.genericparser.from_SIprefix(self.spectraTableWidget.item(dataset, 2).text())  # Read value of RBW from self.spectraTableWidget
+                rbw = gp.genericparser.from_SIprefix(input_str=self.spectraTableWidget.item(dataset, 2).text())  # Read value of RBW from self.spectraTableWidget
             except ValueError as e:
                 print(e)
                 return
@@ -227,9 +233,11 @@ class SvMainWindow(QtWidgets.QMainWindow):
             plt.show()
             #plt.show(block=False) #depreciated
 
-            del normalizedtemporary
         else:
             print("Nothing to plot")
+
+        if "normalizedtemporary" in locals():
+            del normalizedtemporary
 
         gc.collect()  # Garbage collector keeps the memory usage fairly low
 

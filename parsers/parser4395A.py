@@ -49,13 +49,19 @@ class parser(gp.genericparser):
     headerlength = 15
 
     def __init__(self, filename):
-        self.traces[:] = []
         self.fname = filename
-        data = genfromtxt(filename, delimiter='\t', skip_header=self.headerlength)
+        self.rbw = 1.0
+
+    def parse(self):
+        mytrace = []
+        data = genfromtxt(self.fname, delimiter='\t',
+                          skip_header=self.headerlength)  # 1st col: freq, 2nd col: tr1, 3rd col: tr2
         self.numberoftraces = len(data[0]) - 1
         for i in range(self.numberoftraces):
-            self.traces.append(data[:, [0, i + 1]])
-        self.rbw = 1.0
+            mytrace.append(data[:, [0, i + 1]])  # Each trace is composed of two columns: freq, trace
+
+        return mytrace
+
 
     def header(self):
         with open(self.fname, 'r') as f:

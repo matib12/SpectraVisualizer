@@ -25,9 +25,6 @@ filtername = parsershortname + " (*.txt)"
 
 
 class parser(gp.genericparser):
-    # number of traces
-    numberoftraces = None
-    rbw = 1.0
 
     originalunit = 'vrms'
 
@@ -36,10 +33,16 @@ class parser(gp.genericparser):
     # Header takes 15 lines
     def __init__(self, filename):
         self.fname = filename
-        self.data = genfromtxt(filename, delimiter=',', skip_header=16)
-        self.numberoftraces = len(self.data[0] - 1)
-        self.rbw = 30000.0
+        self.rbw = 1.0
 
+    def parse(self):
+        mytrace = []
+        data = genfromtxt(self.fname, delimiter=',', skip_header=16)  # 1st col: freq, 2nd col: tr1, 3rd col: tr2
+        self.numberoftraces = len(data[0]) - 1
+        for i in range(self.numberoftraces):
+            mytrace.append(data[:, [0, i + 1]])  # Each trace is composed of two columns: freq, trace
+
+        return mytrace
 
     def header(self):
         pass
