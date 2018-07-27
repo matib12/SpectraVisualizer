@@ -20,8 +20,6 @@ import parsers.parserpyrpl as parserpyrpl
 
 import SpectraConverter as SC
 
-from operator import itemgetter
-
 __author__ = "Mateusz Bawaj"
 __copyright__ = "Copyright 2018"
 __license__ = "GPL"
@@ -29,6 +27,10 @@ __version__ = "1.0.4"
 __maintainer__ = "Mateusz Bawaj"
 __email__ = "bawaj@pg.infn.it"
 __status__ = "Development"
+
+# TODO add logging to file
+# TODO add configuration file for last and favourite settings
+# TODO write the SSA3000X parser
 
 
 class SvMainWindow(QtWidgets.QMainWindow):
@@ -54,7 +56,13 @@ class SvMainWindow(QtWidgets.QMainWindow):
         #QtGui.QMainWindow.resizeEvent(self, e)  # Given by https://stackoverflow.com/questions/41091212/pyqt4-window-resize-event
 
     def __init__(self):
-# Prepare list of filters for QFileDialog
+        """
+        Constructor of SvMainWindow
+        1. Prepares an ordered list of filters for QFileDialog.
+        2. Loads ui from file created by QtCreator
+        3. Connects callbacks for events
+        4. Displays GUI
+        """
         self.filterslist[0] = ("Select device")
         parsermodulelist = []
         for par in self.availableparsers:
@@ -69,15 +77,15 @@ class SvMainWindow(QtWidgets.QMainWindow):
 
         uic.loadUi("./SpectraVisualizer.ui", self)
 
-# Prepare QTableView header widths
+        # Prepare QTableView header widths
         self.spectraTableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
-# Prepare list of units
+        # Prepare list of units
         for unit in SC.spectraunits:
             #self.psdunitlist.append(unit.symbol + " (" + unit.physical_quantity + ")")
             self.unitComboBox.addItem(unit.symbol + " (" + unit.physical_quantity + ")", unit)
 
-# Attach methods:
+        # Attach methods:
         self.plotButton.clicked.connect(self.plotallspectra)
 
         self.addButton.clicked.connect(self.openspectrumfile)
@@ -100,6 +108,9 @@ class SvMainWindow(QtWidgets.QMainWindow):
         exit(0)
 
     def openspectrumfile(self):
+        """
+        Adds entries to the list in the main window which correspond to traces saved in the parsed file
+        """
         print("Open file dialog...")
         filedialog = QtWidgets.QFileDialog(self)
         filedialog.setWindowTitle('Load spectrum file')
@@ -123,32 +134,29 @@ class SvMainWindow(QtWidgets.QMainWindow):
 
                     currentparse = parsermodule.parser(fname)  # Remember parser for this programme run
 
-                    #  Header parse
-                    currentparse.header()
-                    currentparse.printparams()
-                    trrr = currentparse.parse()
+                    traces = currentparse.parse()  #
 
                     #  Data parse
                     rowsnumber = self.spectraTableWidget.rowCount()
 
-                    for trace in range(currentparse.numberoftraces):
+                    for trace in traces:
                         self.spectraTableWidget.insertRow(rowsnumber)
 
                         # 1st column - Filename and data
                         dataitem = QtWidgets.QTableWidgetItem(os.path.basename(fname))
-                        dataitem.setData(core.Qt.UserRole, trrr[trace])
+                        dataitem.setData(core.Qt.UserRole, trace)
                         dataitem.setFlags(self.filenameItemFlags)
                         self.spectraTableWidget.setItem(rowsnumber, 0, dataitem)
 
                         # 2nd column - Trace number in file
-                        tracenumberinfileitem = QtWidgets.QTableWidgetItem(str(trace))
+                        tracenumberinfileitem = QtWidgets.QTableWidgetItem(str(trace.number))
                         tracenumberinfileitem.setFlags(self.traceItemFlags)
                         self.spectraTableWidget.setItem(rowsnumber, 1, tracenumberinfileitem)
 
                         # 2nd column - RBW
                         if currentparse.rbw != 0:
-                            rbwitem = QtWidgets.QTableWidgetItem(str(currentparse.rbw))
-                            rbwitem.setData(core.Qt.UserRole, currentparse.rbw)
+                            rbwitem = QtWidgets.QTableWidgetItem(str(trace.rbw))
+                            rbwitem.setData(core.Qt.UserRole, trace.rbw)
                         else:
                             rbwitem = QtWidgets.QTableWidgetItem("0.0")
                         self.spectraTableWidget.setItem(rowsnumber, 2, rbwitem)
@@ -163,15 +171,17 @@ class SvMainWindow(QtWidgets.QMainWindow):
                         self.spectraTableWidget.setCellWidget(rowsnumber, 3, combobox)
 
                         # 4th column - Chart label
-                        labelitem = QtWidgets.QTableWidgetItem(os.path.basename(fname) + " TR:" + str(trace))
+                        labelitem = QtWidgets.QTableWidgetItem(os.path.basename(fname) + " TR:" + str(trace.number))
                         self.spectraTableWidget.setItem(rowsnumber, 4, labelitem)
 
                     del currentparse
         else:
             print("QFileDialog canceled")
-            return
 
     def removespectra(self):
+        """
+        Removes selected entries from the list in the main window
+        """
         print("Remove selected spectra")
         index_list = []
         for SelectedItem in self.spectraTableWidget.selectedItems():
@@ -186,8 +196,14 @@ class SvMainWindow(QtWidgets.QMainWindow):
             self.spectraTableWidget.removeRow(index)
 
     def plotallspectra(self):
+        """
+        Opens a new window with a chart plotting all traces present in the list in the main window
+        """
         print("Plot spectra...")
         numberofspectra = self.spectraTableWidget.rowCount()
+
+        fig = plt.figure()
+        fig.canvas.set_window_title('Chart')
 
         for dataset in range(0, numberofspectra):  # Iterate over all loaded spectra files
             its = self.spectraTableWidget.item(dataset, 0).data(core.Qt.UserRole)
@@ -199,28 +215,28 @@ class SvMainWindow(QtWidgets.QMainWindow):
                 rbw = gp.genericparser.from_SIprefix(input_str=self.spectraTableWidget.item(dataset, 2).text())  # Read value of RBW from self.spectraTableWidget
             except ValueError as e:
                 print(e)
-                return
+                return None
 
             print("RBW=" + str(rbw))  # Print RBW read from self.spectraTableWidget
 
-            print("Trace before normalization:")
-            print(its[:, 1])  # Before normalization and conversion
+            #print("Trace before normalization:")
+            #print(its.tracedata[:, 1])  # Before normalization and conversion
 
             # Use proper normalizer for existing source units
             curr_unit_index = self.spectraTableWidget.cellWidget(dataset, 3).currentIndex()  # Read selected unit
-            print("Source unit: " + str(self.spectraTableWidget.cellWidget(dataset, 3).itemData(curr_unit_index)))
+            print("Source unit: " + str(self.spectraTableWidget.cellWidget(dataset, 3).itemData(curr_unit_index).unit))
 
             N = self.spectraTableWidget.cellWidget(dataset, 3).itemData(curr_unit_index)
 
             # Use if necessary a proper converter based on source units and destination units
-            normalizedtemporary = N.normalizer(self, its[:, 1], N.K(self, rbw))
+            normalizedtemporary = N.normalizer(self, its.tracedata[:, 1], N.K(self, rbw))
 
-            print("Trace after normalization:")
-            print(normalizedtemporary)  # After normalization and conversion
+            #print("Trace after normalization:")
+            #print(normalizedtemporary)  # After normalization and conversion
 
             labeltext = self.spectraTableWidget.item(dataset, 4).text()  # Label
 
-            plt.plot(its[:, 0], normalizedtemporary, label=labeltext)
+            plt.plot(its.tracedata[:, 0], normalizedtemporary, label=labeltext)
 
         if numberofspectra > 0:
             plt.ylabel(SC.spectraunits[self.unitComboBox.currentIndex()].symbol)

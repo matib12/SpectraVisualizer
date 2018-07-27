@@ -16,6 +16,12 @@ __status__ = "Development"
 SIprefix = {'Y': 24.0, 'Z': 21.0, 'E': 18.0, 'P': 15.0, 'T': 12.0, 'G': 9.0, 'M': 6.0, 'k': 3.0, 'm': -3.0, 'μ': -6.0,
            'u': -6.0, 'n': -9.0, 'p': -12.0, 'f': -15.0, 'a': -18.0, 'z': -21.0, 'y': -24.0}
 
+class trace(object):
+    fname = None
+    rbw = 1.0
+    originalunit = 'dbm'  # Can be discovered automatically by parser or set manually
+    tracedata = []  # List of pairs [[freq1, data1], [freq2, data2], ... ]
+    number = None
 
 class genericparser(object):
     fname = None
@@ -24,7 +30,7 @@ class genericparser(object):
     def parse(self):  # Must be overloaded in the inheriting class
         return []
 
-    def header(self):  # Must be overloaded in the inheriting class
+    def _header(self):  # Must be overloaded in the inheriting class
         pass
 
     def printparams(self):

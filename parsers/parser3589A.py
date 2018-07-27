@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# import numpy as np
-
 # Number of points varies. It is up to 801 points per channel (or 401 while using two channels?)
 
 import parsers.parserGeneric as gp
@@ -47,7 +45,7 @@ class parser(gp.genericparser):
             self.traces.append(data[:, [0, i + 1]])
         self.rbw = 1.0
 
-    def header(self):
+    def _header(self):
         with open(self.fname, 'r') as f:
             for i in range(self.headerlength):
                 line_text = f.readline()

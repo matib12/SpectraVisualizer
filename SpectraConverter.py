@@ -32,6 +32,12 @@ class psd_dBm:  # Verified with data acquired by 4395A!!! Works well
     physical_quantity = "PSD"
 
     def normalizer(self, array, rbw):
+        """
+
+        :param array:
+        :param rbw:
+        :return:
+        """
         return lognormalize(array, rbw)
 
     def K(self, rbw):
